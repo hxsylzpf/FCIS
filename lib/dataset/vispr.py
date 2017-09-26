@@ -24,8 +24,13 @@ import hickle as hkl
 from bbox.bbox_transform import clip_boxes
 import multiprocessing.dummy as mp
 
-from pprint import pprint
-from IPython.core.debugger import Pdb
+import pprint
+
+from tools.common.utils import load_attributes, get_image_id_info_index
+from tools.evaltools.evaluate import VISPRSegEval
+
+import os
+import os.path as osp
 
 def coco_results_one_category_kernel(data_pack):
     cat_id = data_pack['cat_id']
@@ -88,7 +93,8 @@ def generate_cache_seg_inst_kernel(annWithObjs):
     if not os.path.exists(gt_mask_flip_file):
         hkl.dump(gt_mask[:, :, ::-1].astype('bool'), gt_mask_flip_file, mode='w', compression='gzip')
 
-class coco(IMDB):
+
+class vispr(IMDB):
     def __init__(self, image_set, root_path, data_path, result_path=None, mask_size=-1, binary_thresh=None):
         """
         fill basic information to initialize imdb
@@ -96,26 +102,47 @@ class coco(IMDB):
         :param root_path: 'data', will write 'rpn_data', 'cache'
         :param data_path: 'data/coco'
         """
-        super(coco, self).__init__('COCO', image_set, root_path, data_path, result_path)
+        super(vispr, self).__init__('COCO', image_set, root_path, data_path, result_path)
         self.root_path = root_path
         self.data_path = data_path
-        self.coco = COCO(self._get_ann_file())
+        self.data_name = image_set
+        self.annotation_path = self._get_ann_file()
+        self.annotation_full = json.load(open(self.annotation_path))
+        # self.coco = COCO(self._get_ann_file())
+        self.annos = self.annotation_full['annotations']
 
         # deal with class names
-        cats = [cat['name'] for cat in self.coco.loadCats(self.coco.getCatIds())]
+        # cats = [cat['name'] for cat in self.coco.loadCats(self.coco.getCatIds())]
+        cats = sorted(self.annotation_full['stats']['present_attr'])
         self.classes = ['__background__'] + cats
-        self.num_classes = len(self.classes)
-        # Mapping from category name -> this_index \in [0, K] where 0 == __background__
-        self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
-        # Mapping from category name -> coco_index \in {0, K} where 0 == __background__ (some indices are missing)
-        self._class_to_coco_ind = dict(zip(cats, self.coco.getCatIds()))
-        # Mapping of coco_index -> this_index
-        self._coco_ind_to_class_ind = dict([(self._class_to_coco_ind[cls], self._class_to_ind[cls])
-                                            for cls in self.classes[1:]])
+        self.num_classes = len(self.classes)   # includes background
 
-        pdb = Pdb()
-        pdb.set_trace()
-        assert False
+        # self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
+        # self._class_to_coco_ind = dict(zip(cats, self.coco.getCatIds()))
+        # self._coco_ind_to_class_ind = dict([(self._class_to_coco_ind[cls], self._class_to_ind[cls])
+        #                                     for cls in self.classes[1:]])
+
+        # Mapping from attr_id attr_id -> this_index \in [0, K] where 0 == __background__
+        self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
+        # Mapping from category name -> coco_index \in {0, L} where 0 == __background__ (L > K, some indices are missing)
+        self._class_to_vispr_ind = dict(zip(cats, xrange(len(cats))))
+        # Mapping of coco_index -> this_index
+        self._vispr_ind_to_class_ind = dict([(self._class_to_vispr_ind[cls], self._class_to_ind[cls])
+                                             for cls in self.classes[1:]])
+
+        pp = pprint.PrettyPrinter(indent=2)
+        print '------------------- self._class_to_ind -------------------'
+        pp.pprint(self._class_to_ind)
+        print '------------------- self._class_to_vispr_ind -------------------'
+        pp.pprint(self._class_to_vispr_ind)
+        print '------------------- self._vispr_ind_to_class_ind -------------------'
+        pp.pprint(self._vispr_ind_to_class_ind)
+
+        self.image_id_index = get_image_id_info_index()
+        self.attrIds = cats
+        self.attrIdxs = range(len(cats))
+        self.idx_to_attr_id = dict(zip(self.attrIdxs, self.attrIds))
+        self.attr_id_to_idx = dict(zip(self.attrIds, self.attrIdxs))
 
         # load image file names
         self.image_set_index = self._load_image_set_index()
@@ -125,25 +152,23 @@ class coco(IMDB):
         self.binary_thresh = binary_thresh
 
         # deal with data name
-        view_map = {'minival2014': 'val2014',
-                    'valminusminival2014': 'val2014',
-                    'test-dev2015': 'test2015'}
-        self.data_name = view_map[image_set] if image_set in view_map else image_set
+        # view_map = {'minival2014': 'val2014',
+        #             'valminusminival2014': 'val2014',
+        #             'test-dev2015': 'test2015'}
 
     def _get_ann_file(self):
         """ self.data_path / annotations / instances_train2014.json """
-        prefix = 'instances' if 'test' not in self.image_set else 'image_info'
-        return os.path.join(self.data_path, 'annotations',
-                            prefix + '_' + self.image_set + '.json')
+        return osp.join(self.data_path, 'annotations', self.image_set + '.json')
 
     def _load_image_set_index(self):
         """ image id: int """
-        image_ids = self.coco.getImgIds()
+        image_ids = self.annos.keys()
         return image_ids
 
     def image_path_from_index(self, index):
         """ example: images / train2014 / COCO_train2014_000000119993.jpg """
-        filename = 'COCO_%s_%012d.jpg' % (self.data_name, index)
+        image_rel_path = self.image_id_index[index]['image_path']
+        _, filename = osp.split(image_rel_path)
         image_path = os.path.join(self.data_path, 'images', self.data_name, filename)
         assert os.path.exists(image_path), 'Path does not exist: {}'.format(image_path)
         return image_path
@@ -176,12 +201,12 @@ class coco(IMDB):
             return sdsdb
         """
         # for internal useage
-        tic();
+        tic()
         gt_sdsdb_temp = [self.load_coco_sds_annotation(index) for index in self.image_set_index]
         gt_sdsdb = [x[0] for x in gt_sdsdb_temp]
-        print 'prepare gt_sdsdb using', toc(), 'seconds';
+        print 'prepare gt_sdsdb using', toc(), 'seconds'
         #objs = [x[1] for x in gt_sdsdb_temp]
-        tic();
+        tic()
         generate_cache_seg_inst_kernel(gt_sdsdb_temp[0])
         pool = mp.Pool(mp.cpu_count())
         pool.map(generate_cache_seg_inst_kernel, gt_sdsdb_temp)
@@ -208,12 +233,11 @@ class coco(IMDB):
         :param index: coco image id
         :return: roidb entry
         """
-        im_ann = self.coco.loadImgs(index)[0]
-        width = im_ann['width']
-        height = im_ann['height']
+        im_ann = self.annos[index]
+        width = im_ann['image_width']
+        height = im_ann['image_height']
 
-        annIds = self.coco.getAnnIds(imgIds=index, iscrowd=False)
-        objs = self.coco.loadAnns(annIds)
+        objs = self.annos[index]['attributes']
 
         # sanitize bboxes
         valid_objs = []
@@ -234,7 +258,7 @@ class coco(IMDB):
         overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
 
         for ix, obj in enumerate(objs):
-            cls = self._coco_ind_to_class_ind[obj['category_id']]
+            cls = self.attr_id_to_idx[obj['attr_id']] + 1
             boxes[ix, :] = obj['clean_bbox']
             gt_classes[ix] = cls
             if obj['iscrowd']:
@@ -261,11 +285,11 @@ class coco(IMDB):
         """
         if self.data_name == 'val':
             return []
-        cache_file = os.path.join(self.cache_path, 'COCOMask', self.data_name)
+        cache_file = os.path.join(self.cache_path, 'VISPRMask', self.data_name)
         if not os.path.exists(cache_file):
             os.makedirs(cache_file)
         # instance level segmentation
-        filename = 'COCO_%s_%012d' % (self.data_name, index)
+        filename = '%s_%s' % (self.data_name, index)
         gt_mask_file = os.path.join(cache_file, filename + '.hkl')
         return gt_mask_file
 
@@ -280,13 +304,11 @@ class coco(IMDB):
         :param index: coco image id
         :return: roidb entry
         """
-        im_ann = self.coco.loadImgs(index)[0]
-        width = im_ann['width']
-        height = im_ann['height']
+        im_ann = self.annos[index]
+        width = im_ann['image_width']
+        height = im_ann['image_height']
 
-        # only load objs whose iscrowd==false
-        annIds = self.coco.getAnnIds(imgIds=index, iscrowd=False)
-        objs = self.coco.loadAnns(annIds)
+        objs = self.annos[index]['attributes']
 
         # sanitize bboxes
         valid_objs = []
@@ -307,7 +329,7 @@ class coco(IMDB):
         overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
 
         for ix, obj in enumerate(objs):
-            cls = self._coco_ind_to_class_ind[obj['category_id']]
+            cls = self.attr_id_to_idx[obj['attr_id']] + 1
             boxes[ix, :] = obj['clean_bbox']
             gt_classes[ix] = cls
             if obj['iscrowd']:
@@ -350,23 +372,25 @@ class coco(IMDB):
           "score": 0.236}, ...]
         """
         all_im_info = [{'index': index,
-                        'height': self.coco.loadImgs(index)[0]['height'],
-                        'width': self.coco.loadImgs(index)[0]['width']}
+                        'height': self.annos[index]['image_height'],
+                        'width': self.annos[index]['image_width']}
                         for index in self.image_set_index]
 
         if ann_type == 'bbox':
-            data_pack = [{'cat_id': self._class_to_coco_ind[cls],
+            data_pack = [{'cat_id': self._class_to_vispr_ind[cls],
                           'cls_ind': cls_ind,
                           'cls': cls,
+                          'attr_id': cls,
                           'ann_type': ann_type,
                           'binary_thresh': self.binary_thresh,
                           'all_im_info': all_im_info,
                           'boxes': detections[0][cls_ind]}
                          for cls_ind, cls in enumerate(self.classes) if not cls == '__background__']
         elif ann_type == 'segm':
-            data_pack = [{'cat_id': self._class_to_coco_ind[cls],
+            data_pack = [{'cat_id': self._class_to_vispr_ind[cls],
                           'cls_ind': cls_ind,
                           'cls': cls,
+                          'attr_id': cls,
                           'ann_type': ann_type,
                           'binary_thresh': self.binary_thresh,
                           'all_im_info': all_im_info,
@@ -387,18 +411,18 @@ class coco(IMDB):
             json.dump(results, f, sort_keys=True, indent=4)
 
     def _do_python_eval(self, res_file, res_folder, ann_type):
-        coco_dt = self.coco.loadRes(res_file)
-        coco_eval = COCOeval(self.coco, coco_dt)
-        coco_eval.params.useSegm = (ann_type == 'segm')
+        coco_eval = VISPRSegEval(self.annotation_path, res_file)
         coco_eval.evaluate()
         coco_eval.accumulate()
-        info_str = self._print_detection_metrics(coco_eval)
+        coco_eval.summarize()
+
+        info_str = coco_eval.stats_str
 
         eval_file = os.path.join(res_folder, 'detections_%s_results.pkl' % self.image_set)
         with open(eval_file, 'w') as f:
             cPickle.dump(coco_eval, f, cPickle.HIGHEST_PROTOCOL)
-        print 'coco eval results saved to %s' % eval_file
-        info_str += 'coco eval results saved to %s\n' % eval_file
+        print 'vispr eval results saved to %s' % eval_file
+        info_str += 'vispr eval results saved to %s\n' % eval_file
         return info_str
 
     def _print_detection_metrics(self, coco_eval):

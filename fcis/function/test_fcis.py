@@ -15,6 +15,8 @@ from core.loader import TestLoader
 from core.tester import Predictor, pred_eval
 from utils.load_model import load_param
 
+from dataset.vispr import vispr
+
 
 def test_fcis(config, dataset, image_set, root_path, dataset_path,
               ctx, prefix, epoch,

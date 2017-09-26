@@ -143,7 +143,7 @@ def main():
             masks[i] = masks[i][keep]
         im = cv2.imread(cur_path + '/../demo/' + im_name)
         im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
-        show_masks(im, dets, masks, classes, config)
+        show_masks(im, dets, masks, classes, config, im_name=im_name)
 
     print 'done'
 

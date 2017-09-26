@@ -1,8 +1,9 @@
 import numpy as np
 import os
+import os.path as osp
 import cv2
 import random
-from PIL import Image
+from PIL import Image, ImageDraw
 from bbox.bbox_transform import clip_boxes
 
 
@@ -21,6 +22,19 @@ def get_image(roidb, config):
     processed_roidb = []
     for i in range(num_images):
         roi_rec = roidb[i]
+        # Plot (Image + BBoxes) before transformation
+
+        # img_path = roi_rec['image']
+        # _, img_name = osp.split(img_path)
+        # img_out_path = osp.join('debug', 'before', img_name)
+        # imd = Image.open(img_path)
+        # draw = ImageDraw.Draw(imd)
+        # n_boxes, _ = roi_rec['boxes'].shape
+        # for bi in range(n_boxes):
+        #     draw.rectangle(roi_rec['boxes'][bi].tolist(), outline='yellow')
+        # del draw
+        # imd.save(img_out_path)
+
         assert os.path.exists(roi_rec['image']), '%s does not exist'.format(roi_rec['image'])
         im = cv2.imread(roi_rec['image'], cv2.IMREAD_COLOR|cv2.IMREAD_IGNORE_ORIENTATION)
         if roidb[i]['flipped']:
@@ -33,7 +47,9 @@ def get_image(roidb, config):
         im_tensor = transform(im, config.network.PIXEL_MEANS)
         processed_ims.append(im_tensor)
         im_info = [im_tensor.shape[2], im_tensor.shape[3], im_scale]
+        # print 'Boxes before: ', roi_rec['boxes']
         new_rec['boxes'] = clip_boxes(np.round(roi_rec['boxes'].copy() * im_scale), im_info[:2])
+        # print 'Boxes after: ', new_rec['boxes']
         new_rec['im_info'] = im_info
         processed_roidb.append(new_rec)
     return processed_ims, processed_roidb

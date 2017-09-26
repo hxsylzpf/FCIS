@@ -7,6 +7,7 @@
 
 from skimage.draw import polygon
 import numpy as np
+from pycocotools import mask as mask_utils
 
 
 def segToMask( S, h, w ):
@@ -53,6 +54,7 @@ def mask_coco2voc(coco_masks, im_height, im_width):
             m = segToMask(ann, im_height, im_width)
         else:
             # rle
-            m = decodeMask(ann)
+            # m = decodeMask(ann)
+            m = mask_utils.decode(ann)
         voc_masks[i,:,:]=m;
     return voc_masks

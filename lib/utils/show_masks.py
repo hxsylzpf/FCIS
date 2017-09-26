@@ -10,9 +10,11 @@ import utils.image as image
 import matplotlib.pyplot as plt
 import random
 import cv2
+import os
+from PIL import Image
 
 
-def show_masks(im, detections, masks, class_names, cfg, scale=1.0, show = True):
+def show_masks(im, detections, masks, class_names, cfg, scale=1.0, show = True, im_name = None):
     """
     visualize all detections in one image
     :param im_array: [b=1 c h w] in rgb
@@ -48,6 +50,11 @@ def show_masks(im, detections, masks, class_names, cfg, scale=1.0, show = True):
             plt.gca().text((bbox[2]+bbox[0])/2, bbox[1],
                            '{:s} {:.3f}'.format(name, score),
                            bbox=dict(facecolor=color, alpha=0.9), fontsize=8, color='white')
+    if im_name is not None:
+        out_path = os.path.join('demo/out', im_name)
+        print 'Saving to: ', out_path
+        pil_im = Image.fromarray(im)
+        pil_im.save(out_path)
     plt.imshow(im)
     if show:
         plt.show()

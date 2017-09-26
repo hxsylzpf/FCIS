@@ -1,8 +1,8 @@
 ---
 MXNET_VERSION: "mxnet"
-output_path: "./output/fcis/coco"
+output_path: "./output/fcis/vispr"
 symbol: resnet_v1_101_fcis
-gpus: '0'
+gpus: '1'
 CLASS_AGNOSTIC: true
 SCALES:
 - 600
@@ -13,7 +13,8 @@ default:
   frequent: 100
   kvstore: device
 network:
-  pretrained: "./model/pretrained_model/resnet_v1_101"
+  # pretrained: "./model/pretrained_model/resnet_v1_101"
+  pretrained: "./model/fcis_coco"
   pretrained_epoch: 0
   PIXEL_MEANS:
   - 103.06
@@ -51,12 +52,12 @@ network:
   - 32
   NUM_ANCHORS: 12
 dataset:
-  NUM_CLASSES: 81
-  dataset: coco
-  dataset_path: "./data/coco"
-  image_set: train2014+valminusminival2014
+  NUM_CLASSES: 27
+  dataset: vispr
+  dataset_path: "./data/vispr"
+  image_set: train2017
   root_path: "./data"
-  test_image_set: test-dev2015
+  test_image_set: val2017
   proposal: rpn
 TRAIN:
   lr: 0.0005
@@ -65,11 +66,11 @@ TRAIN:
   warmup_lr: 0.00005
   # typically we will use 4000 warmup step for single GPU
   warmup_step: 250
-  begin_epoch: 0
+  begin_epoch: 2
   end_epoch: 8
   model_prefix: 'e2e'
   # whether resume training
-  RESUME: false
+  RESUME: true
   # whether flip image
   FLIP: true
   # whether shuffle image
@@ -157,7 +158,7 @@ TEST:
   PROPOSAL_MIN_SIZE: 2
   # RCNN nms
   NMS: 0.3
-  test_epoch: 8
+  test_epoch: 4
   # ITER 2 & mask merge
   ITER: 2
   MIN_DROP_SIZE: 2

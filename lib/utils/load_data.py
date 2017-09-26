@@ -1,5 +1,6 @@
 import numpy as np
 from dataset import *
+from dataset.vispr import vispr
 
 
 def load_gt_roidb(dataset_name, image_set_name, root_path, dataset_path, result_path=None,
@@ -16,6 +17,7 @@ def load_proposal_roidb(dataset_name, image_set_name, root_path, dataset_path, r
                         proposal='rpn', append_gt=True, flip=False):
     """ load proposal roidb (append_gt when training) """
     imdb = eval(dataset_name)(image_set_name, root_path, dataset_path, result_path)
+    # imdb = vispr(image_set_name, root_path, dataset_path, result_path)
 
     gt_roidb = imdb.gt_roidb()
     roidb = eval('imdb.' + proposal + '_roidb')(gt_roidb, append_gt)
@@ -26,8 +28,8 @@ def load_proposal_roidb(dataset_name, image_set_name, root_path, dataset_path, r
 def load_gt_sdsdb(dataset_name, image_set_name, root_path, dataset_path,
                   result_path=None, flip=False, mask_size=21, binary_thresh=0.4):
     """ load ground truth sdsdb """
-    imdb = eval(dataset_name)(image_set_name, root_path, dataset_path, result_path,
-                              mask_size=mask_size, binary_thresh=binary_thresh)
+    print 'dataset_name = ', dataset_name
+    imdb = eval(dataset_name)(image_set_name, root_path, dataset_path, result_path, mask_size=mask_size, binary_thresh=binary_thresh)
     sdsdb = imdb.gt_sdsdb()
     if flip:
         sdsdb = imdb.append_flipped_images(sdsdb)

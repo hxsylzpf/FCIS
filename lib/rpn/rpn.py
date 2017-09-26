@@ -13,9 +13,13 @@ label =
 import numpy as np
 import numpy.random as npr
 
-from utils.image import get_image, tensor_vstack
+from utils.image import get_image, tensor_vstack, transform_inverse
 from generate_anchor import generate_anchors
 from bbox.bbox_transform import bbox_overlaps, bbox_transform
+
+from PIL import Image, ImageDraw
+import os
+import os.path as osp
 
 
 def get_rpn_testbatch(roidb, cfg):
@@ -47,6 +51,8 @@ def get_rpn_batch(roidb, cfg):
     im_array = imgs[0]
     im_info = np.array([roidb[0]['im_info']], dtype=np.float32)
 
+    inv_im_array = transform_inverse(im_array, cfg.network.PIXEL_MEANS)
+
     # gt boxes: (x1, y1, x2, y2, cls)
     if roidb[0]['gt_classes'].size > 0:
         gt_inds = np.where(roidb[0]['gt_classes'] != 0)[0]
@@ -55,6 +61,28 @@ def get_rpn_batch(roidb, cfg):
         gt_boxes[:, 4] = roidb[0]['gt_classes'][gt_inds]
     else:
         gt_boxes = np.empty((0, 5), dtype=np.float32)
+
+    # print 'im_info[0] = ', im_info[0]
+    # print 'roidb[0].keys() = ', roidb[0].keys()
+    # print "gt_boxes = ", gt_boxes
+    # print "im_array.shape = ", im_array.shape
+    # print "inv_im_array.shape = ", inv_im_array.shape
+    # print "roidb[0]['image'] = ", roidb[0]['image']
+    # print "roidb[0]['boxes'] = ", roidb[0]['boxes']
+    # print "roidb[0]['width'], roidb[0]['height'] = ", roidb[0]['width'], roidb[0]['height']
+    # print '-----------'
+
+    # Save image for debugging
+    _, img_name = osp.split(roidb[0]['image'])
+    img_out_path = osp.join('debug', img_name)
+    im = Image.fromarray(inv_im_array)
+    draw = ImageDraw.Draw(im)
+    n_boxes, _ = gt_boxes.shape
+    for i in range(n_boxes):
+        draw.rectangle(gt_boxes[i, 0:4], outline='yellow')
+    del draw
+
+    im.save(img_out_path)
 
     data = {'data': im_array,
             'im_info': im_info}

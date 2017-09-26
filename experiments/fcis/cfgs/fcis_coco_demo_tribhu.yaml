@@ -1,6 +1,6 @@
 ---
 MXNET_VERSION: "mxnet"
-output_path: "./output/fcis/coco"
+output_path: "../output/fcis"
 symbol: resnet_v1_101_fcis
 gpus: '0'
 CLASS_AGNOSTIC: true
@@ -10,7 +10,7 @@ SCALES:
 MASK_SIZE: 21
 BINARY_THRESH: 0.4
 default:
-  frequent: 100
+  frequent: 20
   kvstore: device
 network:
   pretrained: "./model/pretrained_model/resnet_v1_101"

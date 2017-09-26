@@ -185,8 +185,8 @@ class IMDB(object):
         pool_result = []
         for i in range(self.num_images):
             seg_rec = segdb[i]
-            pool_result.append(pool.apply_async(get_flipped_entry_outclass_wrapper, args=(self, seg_rec, )))
-            #self.get_flipped_entry(seg_rec, segdb_flip, i)
+            pool_result.append(pool.apply_async(get_flipped_entry_outclass_wrapper, args=(self, seg_rec,)))
+            # self.get_flipped_entry(seg_rec, segdb_flip, i)
         pool.close()
         pool.join()
         segdb_flip = [res_instance.get() for res_instance in pool_result]
@@ -262,8 +262,8 @@ class IMDB(object):
         all_log_info = ''
         area_names = ['all', '0-25', '25-50', '50-100',
                       '100-200', '200-300', '300-inf']
-        area_ranges = [[0**2, 1e5**2], [0**2, 25**2], [25**2, 50**2], [50**2, 100**2],
-                       [100**2, 200**2], [200**2, 300**2], [300**2, 1e5**2]]
+        area_ranges = [[0 ** 2, 1e5 ** 2], [0 ** 2, 25 ** 2], [25 ** 2, 50 ** 2], [50 ** 2, 100 ** 2],
+                       [100 ** 2, 200 ** 2], [200 ** 2, 300 ** 2], [300 ** 2, 1e5 ** 2]]
         area_counts = []
         for area_name, area_range in zip(area_names[1:], area_ranges[1:]):
             area_count = 0
