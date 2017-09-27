@@ -3,24 +3,26 @@ import numpy as np
 
 from bbox.bbox_transform import bbox_pred, clip_boxes
 from distutils.util import strtobool
-from rpn.generate_anchor import generate_anchors
+from rpn.generate_anchor import generate_anchors, augment_anchors
 from nms.nms import gpu_nms_wrapper
 
 
 class ProposalOperator(mx.operator.CustomOp):
     def __init__(self, feat_stride, scales, ratios, output_score,
-                 rpn_pre_nms_top_n, rpn_post_nms_top_n, nms_threshold, rpn_min_size):
+                 rpn_pre_nms_top_n, rpn_post_nms_top_n, nms_threshold, rpn_min_size, anchor_aug_ratios):
         super(ProposalOperator, self).__init__()
         self._feat_stride = feat_stride
         self._scales = np.fromstring(scales[1:-1], dtype=float, sep=',')
         self._ratios = np.fromstring(ratios[1:-1], dtype=float, sep=',')
         self._anchors = generate_anchors(base_size=self._feat_stride, scales=self._scales, ratios=self._ratios)
         self._num_anchors = self._anchors.shape[0]
+        self.anchors_is_aug = False   # Once we've augmented the anchors, do not repeat it
         self._output_score = output_score
         self._rpn_pre_nms_top_n = rpn_pre_nms_top_n
         self._rpn_post_nms_top_n = rpn_post_nms_top_n
         self._nms_thresh = nms_threshold
         self._rpn_min_size = rpn_min_size
+        self._anchor_aug_ratios = np.fromstring(anchor_aug_ratios[1:-1], dtype=float, sep=',')
 
     def forward(self, is_train, req, in_data, out_data, aux):
         nms = gpu_nms_wrapper(self._nms_thresh, in_data[0].context.device_id)
@@ -40,6 +42,14 @@ class ProposalOperator(mx.operator.CustomOp):
         im_info = in_data[2].asnumpy()[0, :]
 
         height, width = int(im_info[0] / self._feat_stride), int(im_info[1] / self._feat_stride)
+
+        # print '** _anchor_aug_ratios = ', self._anchor_aug_ratios
+        if not self.anchors_is_aug:
+            aug_anchors = augment_anchors(width, height, full_scales=self._anchor_aug_ratios)
+            # print '[proposal] _anchors.shape = {}\taug_anchors.shape = {}'.format(self._anchors.shape, aug_anchors.shape)
+            self._anchors = np.concatenate([self._anchors, aug_anchors], axis=0)
+            self._num_anchors = self._anchors.shape[0]
+            self.anchors_is_aug = True
 
         # Enumerate all shifts
         shift_x = np.arange(0, width) * self._feat_stride
@@ -77,7 +87,12 @@ class ProposalOperator(mx.operator.CustomOp):
         scores = scores.transpose((0, 2, 3, 1)).reshape((-1, 1))
 
         # Convert anchors into proposals via bbox transformations
-        proposals = bbox_pred(anchors, bbox_deltas)
+        try:
+            proposals = bbox_pred(anchors, bbox_deltas)
+        except ValueError:
+            print 'anchors.shape = ', anchors.shape
+            print 'self._anchor_aug_ratios = ', self._anchor_aug_ratios
+            raise
 
         # 2. clip predicted boxes to image
         proposals = clip_boxes(proposals, im_info[:2])
@@ -153,7 +168,8 @@ class ProposalOperator(mx.operator.CustomOp):
 @mx.operator.register('proposal')
 class ProposalProp(mx.operator.CustomOpProp):
     def __init__(self, feat_stride='16', scales='(8, 16, 32)', ratios='(0.5, 1, 2)', output_score='False',
-                 rpn_pre_nms_top_n='6000', rpn_post_nms_top_n='300', nms_threshold='0.3', rpn_min_size='16'):
+                 rpn_pre_nms_top_n='6000', rpn_post_nms_top_n='300', nms_threshold='0.3', rpn_min_size='16',
+                 anchor_aug_ratios='(0.95, )'):
         super(ProposalProp, self).__init__(need_top_grad=False)
         self._feat_stride = int(feat_stride)
         self._scales = scales
@@ -163,6 +179,7 @@ class ProposalProp(mx.operator.CustomOpProp):
         self._rpn_post_nms_top_n = int(rpn_post_nms_top_n)
         self._nms_threshold = float(nms_threshold)
         self._rpn_min_size = int(rpn_min_size)
+        self._anchor_aug_ratios = anchor_aug_ratios
 
     def list_arguments(self):
         return ['cls_prob', 'bbox_pred', 'im_info']
@@ -190,7 +207,8 @@ class ProposalProp(mx.operator.CustomOpProp):
 
     def create_operator(self, ctx, shapes, dtypes):
         return ProposalOperator(self._feat_stride, self._scales, self._ratios, self._output_score,
-                                self._rpn_pre_nms_top_n, self._rpn_post_nms_top_n, self._nms_threshold, self._rpn_min_size)
+                                self._rpn_pre_nms_top_n, self._rpn_post_nms_top_n, self._nms_threshold, self._rpn_min_size,
+                                self._anchor_aug_ratios)
 
     def declare_backward_dependency(self, out_grad, in_data, out_data):
         return []

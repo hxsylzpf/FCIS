@@ -26,6 +26,23 @@ def generate_anchors(base_size=16, ratios=[0.5, 1, 2],
     return anchors
 
 
+def augment_anchors(img_w, img_h, full_scales=[0.95, ]):
+    """
+    Generate anchor (reference) windows by enumerating aspect ratios X
+    scales wrt a reference (0, 0, 15, 15) window.
+    """
+    n_aug_anchors = len(full_scales)
+    aug_anchors = np.zeros((n_aug_anchors, 4))
+    for a_idx, fi_scale in enumerate(full_scales):
+        # Propose a BB at the center with same aspect ratio as image, with above scales
+        wc, hc = img_w / 2.0, img_h / 2.0  # Center of image
+        this_w, this_h = img_w * fi_scale, img_h * fi_scale
+        wmin, wmax = wc - this_w / 2.0, wc + this_w / 2.0
+        hmin, hmax = hc - this_h / 2.0, hc + this_h / 2.0
+        aug_anchors[a_idx] = [wmin, hmin, wmax - 1, hmax - 1]
+    return aug_anchors
+
+
 def _whctrs(anchor):
     """
     Return width, height, x center, and y center for an anchor (window).

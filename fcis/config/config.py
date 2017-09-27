@@ -30,7 +30,8 @@ config.network.FIXED_PARAMS = ['conv0', 'stage1', 'gamma', 'beta']
 config.network.FIXED_PARAMS_SHARED = ['conv0', 'stage1', 'stage2', 'stage3', 'gamma', 'beta']
 config.network.ANCHOR_SCALES = (8, 16, 32)
 config.network.ANCHOR_RATIOS = (0.5, 1, 2)
-config.network.NUM_ANCHORS = len(config.network.ANCHOR_SCALES) * len(config.network.ANCHOR_RATIOS)
+config.network.ANCHOR_AUG_SCALES = (0.95, )
+config.network.NUM_ANCHORS = (len(config.network.ANCHOR_SCALES) * len(config.network.ANCHOR_RATIOS)) + len(config.network.ANCHOR_AUG_SCALES)
 
 # dataset related params
 config.dataset = edict()

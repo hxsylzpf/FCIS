@@ -2,7 +2,7 @@
 MXNET_VERSION: "mxnet"
 output_path: "./output/fcis/vispr"
 symbol: resnet_v1_101_fcis
-gpus: '2'
+gpus: '0'
 CLASS_AGNOSTIC: true
 SCALES:
 - 600
@@ -42,19 +42,21 @@ network:
   - gamma
   - beta
   ANCHOR_RATIOS:
-  - 0.25
   - 0.5
   - 1
   - 2
-  - 4
   ANCHOR_SCALES:
   - 4
   - 8
   - 16
   - 32
-  - 64
-  - 128
-  NUM_ANCHORS: 30
+  ANCHOR_AUG_SCALES:
+  - 0.7
+  - 0.8
+  - 0.9
+  - 1.0
+  # = (ANCHOR_RATIOS * ANCHOR_SCALES) + ANCHOR_AUG_SCALES
+  NUM_ANCHORS: 16
 dataset:
   NUM_CLASSES: 29
   dataset: vispr

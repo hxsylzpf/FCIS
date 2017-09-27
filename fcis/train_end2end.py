@@ -84,7 +84,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
     train_data = AnchorLoader(feat_sym, sdsdb, config, batch_size=input_batch_size, shuffle=config.TRAIN.SHUFFLE,
                               ctx=ctx, feat_stride=config.network.RPN_FEAT_STRIDE, anchor_scales=config.network.ANCHOR_SCALES,
                               anchor_ratios=config.network.ANCHOR_RATIOS, aspect_grouping=config.TRAIN.ASPECT_GROUPING,
-                              allowed_border=config.TRAIN.RPN_ALLOWED_BORDER)
+                              allowed_border=config.TRAIN.RPN_ALLOWED_BORDER, anchor_aug_ratios=config.network.ANCHOR_AUG_SCALES)
 
     # infer max shape
     max_data_shape = [('data', (config.TRAIN.BATCH_IMAGES, 3,
