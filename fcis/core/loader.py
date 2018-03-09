@@ -18,7 +18,7 @@ class AnchorLoader(mx.io.DataIter):
 
     def __init__(self, feat_sym, roidb, config, batch_size=1, shuffle=False, ctx=None, work_load_list=None,
                  feat_stride=16, anchor_scales=(8, 16, 32), anchor_ratios=(0.5, 1, 2), allowed_border=0,
-                 aspect_grouping=False, anchor_aug_ratios=(0.95, )):
+                 aspect_grouping=False):
         super(AnchorLoader, self).__init__()
 
         # save parameters as properties
@@ -34,7 +34,6 @@ class AnchorLoader(mx.io.DataIter):
         self.anchor_ratios = anchor_ratios
         self.allowed_border = allowed_border
         self.aspect_grouping = aspect_grouping
-        self.anchor_aug_ratios = anchor_aug_ratios
 
         # infer properties from roidb
         self.size = len(roidb)
@@ -125,8 +124,7 @@ class AnchorLoader(mx.io.DataIter):
         im_info = [[max_shapes['data'][2], max_shapes['data'][3], 1.0]]
         _, feat_shape, _ = self.feat_sym.infer_shape(**max_shapes)
         label = assign_anchor(feat_shape[0], np.zeros((0, 5)), im_info, self.cfg,
-                              self.feat_stride, self.anchor_scales, self.anchor_ratios, self.allowed_border,
-                              anchor_aug_ratios=self.anchor_aug_ratios)
+                              self.feat_stride, self.anchor_scales, self.anchor_ratios, self.allowed_border)
 
         new_label = {
             'proposal_label': label['label'],
@@ -188,8 +186,7 @@ class AnchorLoader(mx.io.DataIter):
         # assign anchor for label
         label = assign_anchor(feat_shape, label['gt_boxes'], data['im_info'], self.cfg,
                               self.feat_stride, self.anchor_scales,
-                              self.anchor_ratios, self.allowed_border,
-                              anchor_aug_ratios=self.anchor_aug_ratios)
+                              self.anchor_ratios, self.allowed_border)
 
         # don't like the original name
         new_label = {

@@ -14,7 +14,7 @@ import numpy as np
 import numpy.random as npr
 
 from utils.image import get_image, tensor_vstack, transform_inverse
-from generate_anchor import generate_anchors, augment_anchors
+from generate_anchor import generate_anchors
 from bbox.bbox_transform import bbox_overlaps, bbox_transform
 
 from PIL import Image, ImageDraw
@@ -62,29 +62,27 @@ def get_rpn_batch(roidb, cfg):
     else:
         gt_boxes = np.empty((0, 5), dtype=np.float32)
 
-    # print
-    # print '-------------------------------------------------------------------------------------------------'
-    # print "roidb[0]['image'] = ", roidb[0]['image']
     # print 'im_info[0] = ', im_info[0]
-    # # print 'roidb[0].keys() = ', roidb[0].keys()
-    # # print "gt_boxes = ", gt_boxes
-    # # print "im_array.shape = ", im_array.shape
-    # # print "inv_im_array.shape = ", inv_im_array.shape
-    # # print "roidb[0]['boxes'] = ", roidb[0]['boxes']
+    # print 'roidb[0].keys() = ', roidb[0].keys()
+    # print "gt_boxes = ", gt_boxes
+    # print "im_array.shape = ", im_array.shape
+    # print "inv_im_array.shape = ", inv_im_array.shape
+    # print "roidb[0]['image'] = ", roidb[0]['image']
+    # print "roidb[0]['boxes'] = ", roidb[0]['boxes']
     # print "roidb[0]['width'], roidb[0]['height'] = ", roidb[0]['width'], roidb[0]['height']
     # print '-----------'
 
     # Save image for debugging
-    # _, img_name = osp.split(roidb[0]['image'])
-    # img_out_path = osp.join('debug', img_name)
-    # im = Image.fromarray(inv_im_array)
-    # draw = ImageDraw.Draw(im)
-    # n_boxes, _ = gt_boxes.shape
-    # for i in range(n_boxes):
-    #     draw.rectangle(gt_boxes[i, 0:4], outline='yellow')
-    # del draw
-    #
-    # im.save(img_out_path)
+    _, img_name = osp.split(roidb[0]['image'])
+    img_out_path = osp.join('debug', img_name)
+    im = Image.fromarray(inv_im_array)
+    draw = ImageDraw.Draw(im)
+    n_boxes, _ = gt_boxes.shape
+    for i in range(n_boxes):
+        draw.rectangle(gt_boxes[i, 0:4], outline='yellow')
+    del draw
+
+    im.save(img_out_path)
 
     data = {'data': im_array,
             'im_info': im_info}
@@ -94,7 +92,7 @@ def get_rpn_batch(roidb, cfg):
 
 
 def assign_anchor(feat_shape, gt_boxes, im_info, cfg, feat_stride=16,
-                  scales=(8, 16, 32), ratios=(0.5, 1, 2), allowed_border=0, anchor_aug_ratios=[0.95, ]):
+                  scales=(8, 16, 32), ratios=(0.5, 1, 2), allowed_border=0):
     """
     assign ground truth boxes to anchor positions
     :param feat_shape: infer output shape
@@ -126,26 +124,12 @@ def assign_anchor(feat_shape, gt_boxes, im_info, cfg, feat_stride=16,
     im_info = im_info[0]
     scales = np.array(scales, dtype=np.float32)
     base_anchors = generate_anchors(base_size=feat_stride, ratios=list(ratios), scales=scales)
-
-    # full_img_scales = [0.5, 0.75, 1.0]
-    img_w, img_h = im_info[1], im_info[0]
-    aug_anchors = augment_anchors(img_w, img_h, full_scales=anchor_aug_ratios)
-
-    # print '[rpn] base_anchors.shape = {}\taug_anchors.shape = {}'.format(base_anchors.shape, aug_anchors.shape)
-    base_anchors = np.concatenate([base_anchors, aug_anchors], axis=0)
-
     num_anchors = base_anchors.shape[0]
     feat_height, feat_width = feat_shape[-2:]
 
     if DEBUG:
-        print 'feat_shape: '
-        print feat_shape
         print 'anchors:'
         print base_anchors
-        print 'anchors.shape: '
-        print base_anchors.shape
-        # print 'aug_anchors: '
-        # print aug_anchors
         print 'anchor shapes:'
         print np.hstack((base_anchors[:, 2::4] - base_anchors[:, 0::4],
                          base_anchors[:, 3::4] - base_anchors[:, 1::4]))
@@ -181,8 +165,6 @@ def assign_anchor(feat_shape, gt_boxes, im_info, cfg, feat_stride=16,
     # keep only inside anchors
     anchors = all_anchors[inds_inside, :]
     if DEBUG:
-        print 'np.min(anchors, axis=0) = ', np.min(anchors, axis=0)
-        print 'np.max(anchors, axis=0) = ', np.max(anchors, axis=0)
         print 'anchors shape', anchors.shape
 
     # label: 1 is positive, 0 is negative, -1 is dont care
@@ -255,7 +237,7 @@ def assign_anchor(feat_shape, gt_boxes, im_info, cfg, feat_stride=16,
     bbox_weights = _unmap(bbox_weights, total_anchors, inds_inside, fill=0)
 
     if DEBUG:
-        # print 'rpn: max max_overlaps', np.max(max_overlaps)
+        print 'rpn: max max_overlaps', np.max(max_overlaps)
         print 'rpn: num_positives', np.sum(labels == 1)
         print 'rpn: num_negatives', np.sum(labels == 0)
         _fg_sum = np.sum(labels == 1)
